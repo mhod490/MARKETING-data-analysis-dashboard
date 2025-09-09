@@ -1,0 +1,241 @@
+-- إنشاء قاعدة بيانات خاصة ببيانات حملات تسويقية --
+CREATE DATABASE MARKETING_DB;
+
+-- استدعاء قاعدة البيانات لاستخدامها --
+USE MARKETING_DB;
+
+-- ADD COLUMNS & UPDATE TABLE DATA --
+
+-- تعديل النوع البياني لحقل تاريخ البداية إلى نوع تاريخ --
+ALTER TABLE Campaign
+ALTER COLUMN [Start Date] DATE;
+
+
+-- تعديل النوع البياني لحقل تاريخ النهاية إلى نوع تاريخ --
+ALTER TABLE Campaign
+ALTER COLUMN [End Date] DATE;
+
+
+-- إضافة عمود إلى جدول الحملات يإسم إجمالي تكلفة التحويلات --
+ALTER TABLE Campaign
+ADD [Total of Cost Conversions] FLOAT NULL DEFAULT 0.0;
+
+
+-- تعديل بيانات حقل إجمالي تكلفة التحويلات في جدول الحملات لحساب إجمالي تكلفة التحويلات لكل حملة --
+UPDATE Campaign
+SET [Total of Cost Conversions] = [Conversions]*[Cost per Conversion (USD)];
+
+
+-- إضافة عمود إلى جدول الحملات يإسم إجمالي تكلفة النقرات --
+ALTER TABLE Campaign
+ADD [Total of Cost Clicks] FLOAT NULL DEFAULT 0.0;
+
+
+-- تعديل بيانات حقل إجمالي تكلفة النقرات في جدول الحملات لحساب إجمالي تكلفة النقرات لكل حملة --
+UPDATE Campaign
+SET [Total of Cost Clicks] = [Clicks]*[Cost per Click (USD)];
+
+
+-- إضافة عمود إلى جدول الحملات يإسم عدد أيام الحملة --
+ALTER TABLE Campaign
+ADD [Campaign Days] INT DEFAULT 0;
+
+
+-- تعديل بيانات حقل عدد أيام الحملة في جدول الحملات لحساب طول المدة لكل حملة --
+UPDATE Campaign
+SET [Campaign Days] = DATEDIFF(DAY,[Start Date],[End Date]);
+
+
+-- KPIs --
+
+-- الاستعلام عن إجمالي عدد الحملات --
+SELECT COUNT([Campaign Name]) AS [إجمالي عدد الحملات]
+FROM Campaign;
+
+
+-- الاستعلام عن إجمالي ميزانية الحملات --
+SELECT CONCAT(SUM([Budget (USD)]),'$') AS [إجمالي ميزانية الحملات]
+FROM Campaign;
+
+
+-- الاستعلام عن إجمالي مرات الظهور --
+SELECT SUM([Impressions]) AS [إجمالي مرات الظهور]
+FROM Campaign;
+
+
+-- الاستعلام عن إجمالي عدد النقرات --
+SELECT SUM([Clicks]) AS [إجمالي عدد النقرات]
+FROM Campaign;
+
+
+-- الاستعلام عن إجمالي عدد التحويلات --
+SELECT SUM([Conversions]) AS [إجمالي عدد التحويلات]
+FROM Campaign;
+
+
+-- الاستعلام عن معدل النقر للظهور --
+SELECT CONCAT(ROUND(SUM([Clicks])/SUM([Impressions])*100,2),'%') AS [معدل النقر للظهور]
+FROM Campaign;
+
+
+-- الاستعلام عن معدل التحويل --
+SELECT CONCAT(ROUND(SUM([Conversions])/SUM([Clicks])*100,2),'%') AS [معدل التحويل]
+FROM Campaign;
+
+
+-- الاستعلام عن متوسط تكلفة النقرة الواحدة --
+SELECT CONCAT(ROUND(SUM([Budget (USD)])/SUM([Clicks]),2),'$') AS [متوسط تكلفة النقرة الواحدة]
+FROM Campaign;
+
+
+-- الاستعلام عن متوسط تكلفة التحويل الواحد --
+SELECT CONCAT(ROUND(SUM([Budget (USD)])/SUM([Conversions]),2),'$') AS [متوسط تكلفة التحويل الواحد]
+FROM Campaign;
+
+
+-- ANALYTICAL QUESTIONS --
+
+
+-- ماهي المنصة الأكثر فعالية من حيث معدل النقر للظهور ومعدل التحويل؟ --
+SELECT Platform AS [المنصة],
+       CONCAT(ROUND(SUM([Clicks])/SUM([Impressions])*100,2),'%') AS [معدل النقر للظهور],
+	   CONCAT(ROUND(SUM([Conversions])/SUM([Clicks])*100,2),'%') AS [معدل التحويل]
+FROM Campaign
+GROUP BY Platform
+ORDER BY ROUND(SUM([Conversions])/SUM([Clicks])*100,2) DESC;
+
+
+-- أي نوع من الحملات أعطى أعلى عائد بالنسبة لكل هدف (نوع الحملة مقابل إجمالي عدد التحويلات)؟ --
+SELECT [Campaign Type] AS [نوع الحملة],
+        Objective AS [هدف الحملة],
+        SUM(Conversions) AS [إجمالي عدد التحويلات]
+FROM Campaign
+GROUP BY [Campaign Type],
+          Objective
+ORDER BY [Campaign Type],
+          SUM(Conversions) DESC;
+
+
+-- أي نوع من الحملات الأكبر من حيث الميزانية؟ --
+SELECT [Campaign Type] AS [نوع الحملة],
+       CONCAT(SUM([Budget (USD)]),'$') AS [إجمالي الميزانية],
+	   CONCAT(ROUND(SUM([Budget (USD)])/(SELECT SUM([Budget (USD)]) FROM Campaign)*100,2),'%') AS [النسبة من الإجمالي العام للميزانية]
+FROM Campaign
+GROUP BY [Campaign Type]
+ORDER BY  SUM([Budget (USD)]) DESC;
+
+
+-- أي منطقة مستهدفة أعطت أعلى معدل تحويل؟ --
+SELECT [Target Region] AS [المنطقة],
+       CONCAT(ROUND(SUM([Conversions])/SUM([Clicks])*100,2),'%') AS [معدل التحويل]
+FROM Campaign
+GROUP BY [Target Region]
+ORDER BY  ROUND(SUM([Conversions])/SUM([Clicks])*100,2) DESC;
+
+
+-- كيف تتوزع الميزانية مقابل الأداء (الميزانية مقابل إجمالي عدد التحويلات) بالنسبة لكل نوع من الحملات؟ --
+SELECT [Campaign Type] AS [نوع الحملة],
+       CONCAT(SUM([Budget (USD)]),'$') AS [إجمالي الميزانية],
+	   SUM([Conversions]) AS [إجمالي عدد التحويلات]
+FROM Campaign
+GROUP BY [Campaign Type]
+ORDER BY  SUM([Conversions]) DESC;
+
+
+-- ماهو المنتج الذي حقق أعلى معدل تحويل --
+SELECT [Product Promoted] AS [المنتج],
+       CONCAT(ROUND(SUM([Conversions])/SUM([Clicks])*100,2),'%') AS [إجمالي الميزانية]
+FROM Campaign
+GROUP BY [Product Promoted]
+ORDER BY  ROUND(SUM([Conversions])/SUM([Clicks])*100,2) DESC;
+
+
+-- ماهو متوسط تكلفة التحويل الواحد لكل نوع من الحملات بالنسبة لكل منصة؟ --
+SELECT Platform AS [المنصة],
+      [Campaign Type] AS [نوع الحملة],
+       CONCAT(ROUND(SUM([Budget (USD)])/SUM([Conversions]),4),'$') AS [متوسط تكلفة التحويل الواحد]
+FROM Campaign
+GROUP BY Platform,
+         [Campaign Type] 
+ORDER BY Platform,
+         ROUND(SUM([Budget (USD)])/SUM([Conversions]),4) ASC;
+
+
+-- ماهو متوسط تكلفة التحويل الواحد لكل منتج؟ --
+SELECT [Product Promoted] AS [المنتج],
+       CONCAT(ROUND(SUM([Budget (USD)])/SUM([Conversions]),2),'$') AS [متوسط تكلفة التحويل الواحد]
+FROM Campaign
+GROUP BY [Product Promoted] 
+ORDER BY  ROUND(SUM([Budget (USD)])/SUM([Conversions]),2) ASC;
+
+
+-- هل هناك علاقة بين الميزانية ومعدل التحويل بالنسبة لكل منصة؟ --
+SELECT Platform AS [المنصة],
+       CONCAT(SUM([Budget (USD)]),'$') AS [إجمالي الميزانية],
+	   CONCAT(ROUND(SUM([Conversions])/SUM([Clicks])*100,2),'%') AS [معدل التحويل]
+FROM Campaign
+GROUP BY Platform
+ORDER BY SUM([Budget (USD)]) DESC;
+
+
+-- هل هناك علاقة بين الميزانية ومعدل التحويل بالنسبة لكل منتج؟ --
+SELECT [Product Promoted] AS [المنتج],
+       CONCAT(SUM([Budget (USD)]),'$') AS [إجمالي الميزانية],
+	   CONCAT(ROUND(SUM([Conversions])/SUM([Clicks])*100,2),'%') AS [معدل التحويل]
+FROM Campaign
+GROUP BY [Product Promoted]
+ORDER BY SUM([Budget (USD)]) DESC;
+
+
+-- هل هناك علاقة بين الميزانية ومعدل التحويل بالنسبة لكل نوع من الحملات؟ --
+SELECT [Campaign Type] AS [نوع الحملة],
+       CONCAT(SUM([Budget (USD)]),'$') AS [إجمالي الميزانية],
+	   CONCAT(ROUND(SUM([Conversions])/SUM([Clicks])*100,2),'%') AS [معدل التحويل]
+FROM Campaign
+GROUP BY [Campaign Type]
+ORDER BY SUM([Budget (USD)]) DESC;
+
+
+-- كيف تتغير النتائج مع مرور الوقت (من تاريخ بداية الحملة إلى تاريخ نهاية الحملة)؟ --
+SELECT DATENAME(MM,[Start Date]) AS [بداية الحملة],
+       DATENAME(MM,[End Date]) AS [نهاية الحملة],
+       SUM([Clicks]) AS [إجمالي النقرات],
+	   SUM([Conversions]) AS [إجمالي التحويلات]
+FROM Campaign
+GROUP BY DATENAME(MM,[Start Date]), 
+         DATENAME(MM,[End Date]), 
+		 MONTH([Start Date]), 
+		 MONTH([End Date])
+ORDER BY MONTH([Start Date]), 
+         MONTH([End Date]) ASC;
+
+
+-- مدة الحملة مقابل الأداء (عدد أيام الحملة مقابل عدد التحويلات) بالنسبة للحملات ذات التحويلات الأكبر من متوسط عدد التحويلات وأقل من متوسط عدد الأيام --
+SELECT [Campaign Name] AS [اسم الحملة],
+       [Campaign Days] AS [عدد أيام الحملة], 
+	    Conversions AS [عدد التحويلات]
+FROM Campaign
+WHERE Conversions > (SELECT AVG(Conversions) FROM Campaign)
+      AND
+	  [Campaign Days] < (SELECT AVG([Campaign Days]) FROM Campaign)
+ORDER BY [عدد أيام الحملة] ASC;
+
+
+-- ماهي الحملات الذي حققت أفضل عائد من حيث إجمالي عدد التحويلات وأقل من متوسط عدد النقرات ومتوسط عدد الأيام بالنسبة لكل منصة وكل نوع من الحملات؟ --
+SELECT Platform AS [المنصة],
+      [Campaign Type] AS [نوع الحملة],
+	  [Campaign Name] AS [اسم الحملة],
+	  [Campaign Days] AS [عدد أيام الحملة],
+	  Clicks AS [عدد النقرات],
+	  Conversions AS [عدد التحويلات]
+FROM Campaign
+WHERE Conversions > (SELECT AVG(Conversions) FROM Campaign)
+      AND
+	  [Campaign Days] < (SELECT AVG([Campaign Days]) FROM Campaign)
+	  AND
+	  Clicks < (SELECT AVG(Clicks) FROM Campaign)
+ORDER BY المنصة,
+        [نوع الحملة],
+		[عدد أيام الحملة],
+		[عدد النقرات] ASC;
+
